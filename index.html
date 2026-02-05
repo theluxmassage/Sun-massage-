@@ -51,5 +51,55 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+(function () {
+  function tryInsert() {
+    // Find the "Extras" heading
+    const headings = Array.from(document.querySelectorAll("h1,h2,h3,h4"));
+    const extrasHeading = headings.find(h => h.textContent.trim().toLowerCase() === "extras");
+    if (!extrasHeading) return false;
+
+    // Find the card/section that contains it
+    const card = extrasHeading.closest("section,div");
+    if (!card) return false;
+
+    // Find an existing label & price to clone (keeps same styling)
+    const nodes = Array.from(card.querySelectorAll("*"));
+    const labelNode = nodes.find(el =>
+      el.children.length === 0 && /Body Scrub|Table Shower|Cupping/i.test(el.textContent)
+    );
+    const priceNode = nodes.find(el =>
+      el.children.length === 0 && /\+\$10|\+\$20/i.test(el.textContent)
+    );
+    if (!labelNode || !priceNode || !labelNode.parentElement) return false;
+
+    // Prevent duplicates
+    if (card.textContent.toLowerCase().includes("coconut oil")) return true;
+
+    const parent = labelNode.parentElement;
+
+    const newLabel = labelNode.cloneNode(true);
+    newLabel.textContent = "Coconut Oil";
+
+    const newPrice = priceNode.cloneNode(true);
+    newPrice.textContent = "+$10";
+
+    // Insert at the beginning of the existing list
+    parent.insertBefore(newLabel, labelNode);
+    parent.insertBefore(newPrice, labelNode);
+
+    return true;
+  }
+
+  // Wait for the React app to render, then inject
+  const obs = new MutationObserver(() => {
+    if (tryInsert()) obs.disconnect();
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+
+  // Also try once immediately
+  tryInsert();
+})();
+</script>
   </body>
 </html>
