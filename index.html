@@ -53,124 +53,89 @@
     <div id="root"></div>
     <script>
 (function () {
-  function isLeaf(el) {
-    return el && el.children && el.children.length === 0;
-  }
+  function isLeaf(el){ return el && el.children && el.children.length === 0; }
 
-  function findExtrasCard() {
+  function findExtrasList(){
     const headings = Array.from(document.querySelectorAll("h1,h2,h3,h4"));
     const extrasHeading = headings.find(h => h.textContent.trim().toLowerCase() === "extras");
     if (!extrasHeading) return null;
 
-    // card that contains the Extras title
     const card = extrasHeading.closest("section,div");
     if (!card) return null;
 
-    // find the grid/container that holds the items (Body Scrub/Table Shower/Cupping)
-    const containers = Array.from(card.querySelectorAll("div"));
+    // Find the container that already contains the existing extras text
+    const containers = Array.from(card.querySelectorAll("div,section,ul,ol"));
     const list = containers.find(d =>
       d.textContent.includes("Body Scrub") &&
       d.textContent.includes("Table Shower") &&
       d.textContent.includes("Cupping")
     );
-
-    return { card, list };
+    return list ? { card, list } : null;
   }
 
-  function getLabelEl(list, label) {
+  function getLeafByText(list, regex){
     return Array.from(list.querySelectorAll("*"))
-      .find(el => isLeaf(el) && el.textContent.trim() === label);
+      .find(el => isLeaf(el) && regex.test(el.textContent.trim()));
   }
 
-  function getPriceAfter(list, labelEl) {
-    if (!labelEl) return null;
+  function run(){
+    const found = findExtrasList();
+    if (!found) return false;
+    const { list } = found;
 
-    // Walk forward in DOM order and pick the next leaf that looks like +$..
-    const all = Array.from(list.querySelectorAll("*")).filter(isLeaf);
-    const i = all.indexOf(labelEl);
-    if (i < 0) return null;
+    // Find existing nodes to clone styles
+    const labelTemplate = getLeafByText(list, /Body Scrub|Table Shower|Cupping/i);
+    const priceTemplate = getLeafByText(list, /\+\$10|\+\$20/);
+    if (!labelTemplate || !priceTemplate) return false;
 
-    for (let k = i + 1; k < Math.min(i + 6, all.length); k++) {
-      if (/^\+\$\d+/.test(all[k].textContent.trim())) return all[k];
+    // Ensure Coconut Oil label + price exist
+    let coconutLabel = getLeafByText(list, /^Coconut Oil$/i);
+    let coconutPrice = getLeafByText(list, /^\+\$10$/);
+
+    if (!coconutLabel) {
+      coconutLabel = labelTemplate.cloneNode(true);
+      coconutLabel.textContent = "Coconut Oil";
+      list.insertBefore(coconutLabel, list.firstChild);
     }
-    return null;
-  }
-
-  function ensureCoconutOil(list) {
-    let coconutLabel = getLabelEl(list, "Coconut Oil");
-    let coconutPrice = coconutLabel ? getPriceAfter(list, coconutLabel) : null;
-
-    if (coconutLabel && coconutPrice) return { coconutLabel, coconutPrice };
-
-    // Clone Body Scrub label + its +$10 price to preserve styling
-    const bodyScrubLabel = getLabelEl(list, "Body Scrub");
-    const bodyScrubPrice = getPriceAfter(list, bodyScrubLabel);
-    if (!bodyScrubLabel || !bodyScrubPrice) return null;
-
-    coconutLabel = bodyScrubLabel.cloneNode(true);
-    coconutLabel.textContent = "Coconut Oil";
-
-    coconutPrice = bodyScrubPrice.cloneNode(true);
-    coconutPrice.textContent = "+$10";
-
-    // Insert Coconut Oil as the very first pair in the grid
-    list.insertBefore(coconutPrice, bodyScrubLabel);
-    list.insertBefore(coconutLabel, coconutPrice);
-
-    return { coconutLabel, coconutPrice };
-  }
-
-  function reorderExactlyLikeScreenshot(list) {
-    const c = ensureCoconutOil(list);
-    if (!c) return false;
-
-    const bodyScrubLabel = getLabelEl(list, "Body Scrub");
-    const bodyScrubPrice = getPriceAfter(list, bodyScrubLabel);
-
-    const tableShowerLabel = getLabelEl(list, "Table Shower");
-    const tableShowerPrice = getPriceAfter(list, tableShowerLabel);
-
-    const cuppingLabel = getLabelEl(list, "Cupping");
-    const cuppingPrice = getPriceAfter(list, cuppingLabel);
-
-    if (!bodyScrubLabel || !bodyScrubPrice || !tableShowerLabel || !tableShowerPrice || !cuppingLabel || !cuppingPrice) {
-      return false;
+    if (!coconutPrice) {
+      coconutPrice = priceTemplate.cloneNode(true);
+      coconutPrice.textContent = "+$10";
+      list.insertBefore(coconutPrice, coconutLabel.nextSibling);
     }
 
-    // Force exact order:
-    // Coconut Oil +$10 | Body Scrub +$10 | Table Shower +$10 | Cupping +$20
+    // Grab the rest
+    const bodyScrubLabel = getLeafByText(list, /^Body Scrub$/i);
+    const tableShowerLabel = getLeafByText(list, /^Table Shower$/i);
+    const cuppingLabel = getLeafByText(list, /^Cupping$/i);
+
+    // Prices are tricky: pick the closest +$ to each label (same row)
+    function nextPriceAfter(label){
+      if (!label) return null;
+      const leaves = Array.from(list.querySelectorAll("*")).filter(isLeaf);
+      const i = leaves.indexOf(label);
+      return leaves.slice(i+1).find(el => /^\+\$\d+/.test(el.textContent.trim())) || null;
+    }
+
+    const bodyScrubPrice = nextPriceAfter(bodyScrubLabel);
+    const tableShowerPrice = nextPriceAfter(tableShowerLabel);
+    const cuppingPrice = nextPriceAfter(cuppingLabel);
+
     const desired = [
-      c.coconutLabel, c.coconutPrice,
+      coconutLabel, coconutPrice,
       bodyScrubLabel, bodyScrubPrice,
       tableShowerLabel, tableShowerPrice,
       cuppingLabel, cuppingPrice
-    ];
+    ].filter(Boolean);
 
-    // Remove them first so we can re-insert cleanly in correct order
+    // Remove then re-insert in the exact order (keeps the same grid styling)
     desired.forEach(n => n.parentNode && n.parentNode.removeChild(n));
-
-    // Re-insert at the beginning of the list container
-    let anchor = list.firstChild;
-    desired.forEach(n => {
-      list.insertBefore(n, anchor);
-      anchor = n.nextSibling;
-    });
+    desired.forEach(n => list.appendChild(n));
 
     return true;
   }
 
-  function run() {
-    const found = findExtrasCard();
-    if (!found || !found.list) return false;
-    return reorderExactlyLikeScreenshot(found.list);
-  }
-
-  // Wait for the app to render
-  const obs = new MutationObserver(() => {
-    if (run()) obs.disconnect();
-  });
+  const obs = new MutationObserver(() => { if (run()) obs.disconnect(); });
   obs.observe(document.body, { childList: true, subtree: true });
-
   run();
 })();
 </script>
