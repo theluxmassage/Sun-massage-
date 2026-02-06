@@ -108,7 +108,7 @@
     if (!couples || !gifts) return false;
 
     // The row that contains both pills
-    const row = couples.closest("div");
+    const row = couples.parentElement; // wrapper that contains BOTH pills
     if (!row) return false;
 
     // Prevent duplicates
