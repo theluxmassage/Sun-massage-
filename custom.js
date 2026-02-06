@@ -95,42 +95,44 @@
   obs.observe(document.body, { childList: true, subtree: true });
   run();
 })();
-// --- HERO NOTE: Walk-ins line under Couples/Gift buttons ---
+// --- HERO LINE: "walk-ins..." under Couples Room + Gift Certificates ---
 (function () {
-  function insertWalkInsText() {
-    // Find the "Couples Room" button/link
-    const couplesBtn = [...document.querySelectorAll("button, a")]
-      .find(el => (el.textContent || "").trim().includes("Couples Room"));
+  function addHeroLine() {
+    // Find the two pill buttons by text
+    const pills = Array.from(document.querySelectorAll("a,button,div,span"))
+      .filter(el => el && el.textContent && el.textContent.trim());
 
-    if (!couplesBtn) return false;
+    const couples = pills.find(el => el.textContent.trim().toLowerCase() === "couples room");
+    const gifts = pills.find(el => el.textContent.trim().toLowerCase() === "gift certificates");
 
-    // The parent usually holds both "Couples Room" and "Gift Certificates"
-    const container = couplesBtn.parentElement;
-    if (!container) return false;
+    if (!couples || !gifts) return false;
+
+    // The row that contains both pills
+    const row = couples.closest("div");
+    if (!row) return false;
 
     // Prevent duplicates
-    const existing = container.querySelector('[data-walkins-note="1"]');
-    if (existing) return true;
+    if (document.getElementById("walkins-line")) return true;
 
-    const note = document.createElement("div");
-    note.setAttribute("data-walkins-note", "1");
-    note.textContent = "Walk-ins or appointments accepted • Call us";
+    // Insert a nice centered line under the pill row
+    const line = document.createElement("div");
+    line.id = "walkins-line";
+    line.textContent = "Walk-ins or appointments accepted • Call us";
+    line.style.marginTop = "12px";
+    line.style.textAlign = "center";
+    line.style.fontSize = "14px";
+    line.style.letterSpacing = "0.3px";
+    line.style.opacity = "0.9";
+    line.style.color = "rgba(255,255,255,0.75)";
 
-    // Styling (matches your gold vibe)
-    note.style.marginTop = "14px";
-    note.style.fontSize = "13px";
-    note.style.opacity = "0.75";
-    note.style.textAlign = "center";
-    note.style.color = "#d4b26a";
-
-    container.appendChild(note);
+    row.parentElement.insertBefore(line, row.nextSibling);
     return true;
   }
 
   const obs = new MutationObserver(() => {
-    if (insertWalkInsText()) obs.disconnect();
+    if (addHeroLine()) obs.disconnect();
   });
-
   obs.observe(document.body, { childList: true, subtree: true });
-  insertWalkInsText();
+
+  addHeroLine();
 })();
