@@ -4,7 +4,6 @@
   }
 
   function findExtrasList() {
-    // Find the "Extras" heading
     const headings = Array.from(document.querySelectorAll("h1,h2,h3,h4"));
     const extrasHeading = headings.find(h => (h.textContent || "").trim().toLowerCase() === "extras");
     if (!extrasHeading) return null;
@@ -12,7 +11,6 @@
     const card = extrasHeading.closest("section,div");
     if (!card) return null;
 
-    // Find a container that contains ALL existing items
     const containers = Array.from(card.querySelectorAll("div,section,ul,ol"));
     const list = containers.find(c => {
       const t = (c.textContent || "");
@@ -22,91 +20,71 @@
     return list || null;
   }
 
-  function getLeafByExactText(root, exact) {
-    const leaves = Array.from(root.querySelectorAll("*")).filter(isLeaf);
-    return leaves.find(el => (el.textContent || "").trim().toLowerCase() === exact.toLowerCase()) || null;
-  }
-
-  function getPriceLeafNear(root, amount) {
-    const leaves = Array.from(root.querySelectorAll("*")).filter(isLeaf);
-    return leaves.find(el => (el.textContent || "").replace(/\s+/g, "").toLowerCase() === amount.replace(/\s+/g, "").toLowerCase()) || null;
-  }
-
-  function forceGridLayout(list) {
-    // Make it look like your Kimi preview: 2 items per row (label+price, label+price)
+  function makeGrid(list) {
     list.style.display = "grid";
-    list.style.gridTemplateColumns = "1fr auto 1fr auto";
+    list.style.gridTemplateColumns = "1fr auto 1fr auto"; // label, price, label, price
     list.style.columnGap = "24px";
     list.style.rowGap = "16px";
     list.style.alignItems = "center";
-
-    // Align prices to the right
-    Array.from(list.children).forEach(ch => {
-      const txt = (ch.textContent || "").trim();
-      if (/^\+\$\d+/.test(txt)) ch.style.justifySelf = "end";
-      else ch.style.justifySelf = "start";
-    });
   }
 
   function run() {
     const list = findExtrasList();
     if (!list) return false;
 
-    // Already added?
-    if ((list.textContent || "").toLowerCase().includes("coconut oil")) {
-      forceGridLayout(list);
+    // Find templates to clone styling
+    const leaves = Array.from(list.querySelectorAll("*")).filter(isLeaf);
+    const labelTemplate = leaves.find(el => /Body Scrub|Table Shower|Cupping/i.test(el.textContent || ""));
+    const priceTemplate10 = leaves.find(el => (el.textContent || "").replace(/\s+/g, "") === "+$10");
+    const priceTemplate20 = leaves.find(el => (el.textContent || "").replace(/\s+/g, "") === "+$20");
+
+    if (!labelTemplate || !priceTemplate10 || !priceTemplate20) return false;
+
+    // Prevent re-running forever (if we already rebuilt)
+    if ((list.getAttribute("data-extras-fixed") || "") === "1") {
+      makeGrid(list);
+      // align prices right
+      Array.from(list.children).forEach(ch => {
+        const txt = (ch.textContent || "").trim();
+        ch.style.justifySelf = /^\+\$\d+/.test(txt) ? "end" : "start";
+      });
       return true;
     }
 
-    // Find existing nodes (so we keep exact same styling)
-    const bodyScrubLabel = getLeafByExactText(list, "Body Scrub");
-    const tableShowerLabel = getLeafByExactText(list, "Table Shower");
-    const cuppingLabel = getLeafByExactText(list, "Cupping");
+    // Build brand-new nodes (same styling)
+    const mkLabel = (text) => {
+      const n = labelTemplate.cloneNode(true);
+      n.textContent = text;
+      n.style.justifySelf = "start";
+      return n;
+    };
 
-    // Find prices (your page uses +$10 and +$20)
-    const any10 = getPriceLeafNear(list, "+$10");
-    const any20 = getPriceLeafNear(list, "+$20");
+    const mkPrice = (text, template) => {
+      const n = template.cloneNode(true);
+      n.textContent = text;
+      n.style.justifySelf = "end";
+      return n;
+    };
 
-    if (!bodyScrubLabel || !tableShowerLabel || !cuppingLabel || !any10 || !any20) return false;
+    // Clear list and rebuild exact layout:
+    // Row 1: Coconut Oil +$10 | Body Scrub +$10
+    // Row 2: Table Shower +$10 | Cupping +$20
+    list.innerHTML = "";
+    makeGrid(list);
 
-    // Clone a label + a price for Coconut Oil
-    const coconutLabel = bodyScrubLabel.cloneNode(true);
-    coconutLabel.textContent = "Coconut Oil";
+    list.appendChild(mkLabel("Coconut Oil"));
+    list.appendChild(mkPrice("+$10", priceTemplate10));
 
-    const coconutPrice = any10.cloneNode(true);
-    coconutPrice.textContent = "+$10";
+    list.appendChild(mkLabel("Body Scrub"));
+    list.appendChild(mkPrice("+$10", priceTemplate10));
 
-    // Get the correct prices for each item (use the ones already on the page)
-    // We’ll pick prices by looking near each label (fallback: any10/any20)
-    function findPriceFor(label, fallback) {
-      // try next siblings first
-      let n = label.nextElementSibling;
-      while (n) {
-        if (isLeaf(n) && /^\+\$\d+/.test((n.textContent || "").trim())) return n;
-        n = n.nextElementSibling;
-      }
-      return fallback;
-    }
+    list.appendChild(mkLabel("Table Shower"));
+    list.appendChild(mkPrice("+$10", priceTemplate10));
 
-    const bodyScrubPrice = findPriceFor(bodyScrubLabel, any10);
-    const tableShowerPrice = findPriceFor(tableShowerLabel, any10);
-    const cuppingPrice = findPriceFor(cuppingLabel, any20);
+    list.appendChild(mkLabel("Cupping"));
+    list.appendChild(mkPrice("+$20", priceTemplate20));
 
-    // Rebuild order EXACTLY like your preview:
-    const desired = [
-      coconutLabel, coconutPrice,
-      bodyScrubLabel, bodyScrubPrice,
-      tableShowerLabel, tableShowerPrice,
-      cuppingLabel, cuppingPrice
-    ];
-
-    // Move everything into the right order (appendChild moves the node)
-    desired.forEach(node => {
-      if (node && node.parentNode) list.appendChild(node);
-      else if (node) list.appendChild(node);
-    });
-
-    forceGridLayout(list);
+    list.setAttribute("data-extras-fixed", "1");
     return true;
   }
 
