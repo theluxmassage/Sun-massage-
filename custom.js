@@ -125,7 +125,7 @@
     line.style.opacity = "0.9";
     line.style.color = "rgba(255,255,255,0.75)";
 
-    row.parentElement.insertBefore(line, row.nextSibling);
+    row.after(line);
     return true;
   }
 
