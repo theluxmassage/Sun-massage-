@@ -95,3 +95,42 @@
   obs.observe(document.body, { childList: true, subtree: true });
   run();
 })();
+// --- HERO NOTE: Walk-ins line under Couples/Gift buttons ---
+(function () {
+  function insertWalkInsText() {
+    // Find the "Couples Room" button/link
+    const couplesBtn = [...document.querySelectorAll("button, a")]
+      .find(el => (el.textContent || "").trim().includes("Couples Room"));
+
+    if (!couplesBtn) return false;
+
+    // The parent usually holds both "Couples Room" and "Gift Certificates"
+    const container = couplesBtn.parentElement;
+    if (!container) return false;
+
+    // Prevent duplicates
+    const existing = container.querySelector('[data-walkins-note="1"]');
+    if (existing) return true;
+
+    const note = document.createElement("div");
+    note.setAttribute("data-walkins-note", "1");
+    note.textContent = "Walk-ins or appointments accepted • Call us";
+
+    // Styling (matches your gold vibe)
+    note.style.marginTop = "14px";
+    note.style.fontSize = "13px";
+    note.style.opacity = "0.75";
+    note.style.textAlign = "center";
+    note.style.color = "#d4b26a";
+
+    container.appendChild(note);
+    return true;
+  }
+
+  const obs = new MutationObserver(() => {
+    if (insertWalkInsText()) obs.disconnect();
+  });
+
+  obs.observe(document.body, { childList: true, subtree: true });
+  insertWalkInsText();
+})();
